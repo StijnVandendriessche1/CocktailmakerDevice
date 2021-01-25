@@ -1,22 +1,26 @@
 use rppal::gpio::Gpio;
 use rppal::gpio::OutputPin;
-// use std::thread;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
-// use crossbeam;
+use isahc::prelude::*;
+
 mod switch;
 use switch::Switch;
+
+mod ultrasoon;
+use ultrasoon::Ultrasoon;
 
 pub struct CocktailMachine {
     pumps: [OutputPin; 8],
     stop: bool,
     door: Switch,
-    infra: Switch
+    infra: Switch,
+    ultra: Ultrasoon
 }
 
 impl CocktailMachine 
 {
-    pub fn new(p1: u8, p2: u8, p3: u8, p4: u8, p5: u8, p6: u8, p7: u8, p8: u8, door_pin: u8, door_pullup: bool, infra_pin: u8, infra_pullup: bool) -> CocktailMachine 
+    pub fn new(p1: u8, p2: u8, p3: u8, p4: u8, p5: u8, p6: u8, p7: u8, p8: u8, door_pin: u8, door_pullup: bool, infra_pin: u8, infra_pullup: bool, ultra_trigger: u8, ultra_echo: u8) -> CocktailMachine 
     {
         CocktailMachine 
         {
@@ -33,21 +37,22 @@ impl CocktailMachine
             stop: false,
             door: Switch::new(door_pin, CocktailMachine::callback_door, door_pullup),
             infra: Switch::new(infra_pin, CocktailMachine::callback_infra, infra_pullup),
+            ultra: Ultrasoon::new(ultra_trigger, ultra_echo)
         }
     }
 
     pub fn make_cocktail(&mut self, code: &str) 
     {
-        if !self.stop
-        {
         let steps = self.get_steps(code);
         for i in steps.iter() 
         {
             for j in i.iter() 
             {
-                self.activate_pump_time_safe(j[0] - 1, j[1] as u64);
+                if !self.stop
+                {
+                    self.activate_pump_time_safe(j[0] - 1, j[1] as u64);
+                }
             }
-        }
         }
     }
 
@@ -87,6 +92,12 @@ impl CocktailMachine
                 let waitingtime = self.wait_until_clear();
                 now += Duration::from_millis(waitingtime as u64);
                 self.set_pump(pump, true);
+            }
+            if self.ultra.get_avg_distance(20) <= 0.1
+            {
+                self.stop = true;
+                println!("gestop - afstand: {}", self.ultra.get_avg_distance(20));
+                break;
             }
             el = now.elapsed().expect("error").as_secs();
             sleep(Duration::from_millis(200));

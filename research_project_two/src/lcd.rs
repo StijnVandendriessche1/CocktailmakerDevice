@@ -62,6 +62,7 @@ impl Lcd
         {
             self.send_character(i as u8);
         }
+        self.send_character(' ' as u8);
     }
 
     pub fn write_scroll(&mut self, head: &str, body: &str)
